@@ -1,0 +1,226 @@
+<plugin>
+  <description></description>
+  <groupId>org.telscenter.maven-plugins</groupId>
+  <artifactId>webstart-maven-plugin</artifactId>
+  <version>1.0-alpha-1-SNAPSHOT</version>
+  <goalPrefix>webstart</goalPrefix>
+  <isolatedRealm>false</isolatedRealm>
+  <inheritedByDefault>true</inheritedByDefault>
+  <mojos>
+    <mojo>
+      <goal>report</goal>
+      <description></description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>org.codehaus.mojo.webstart.JnlpReportMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-session</executionStrategy>
+      <parameters>
+        <parameter>
+          <name>jnlpSourceDirectory</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>true</editable>
+          <description>Directory where the jnlp artifacts and jnlp sources files reside.</description>
+        </parameter>
+        <parameter>
+          <name>outputDirectory</name>
+          <type>java.io.File</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Location where generated html will be created.</description>
+        </parameter>
+        <parameter>
+          <name>outputName</name>
+          <type>java.lang.String</type>
+          <required>true</required>
+          <editable>true</editable>
+          <description>The default filename to use for the report.</description>
+        </parameter>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>true</editable>
+          <description>Maven Project</description>
+        </parameter>
+        <parameter>
+          <name>siteJnlpFile</name>
+          <type>java.lang.String</type>
+          <required>true</required>
+          <editable>true</editable>
+          <description>Directory in the site directory where the jnlp artifacts and jnlp sources files reside.</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <outputDirectory implementation="java.io.File">${project.build.directory}/site</outputDirectory>
+        <outputName implementation="java.lang.String" default-value="jnlp-report">${outputName}</outputName>
+        <project implementation="org.apache.maven.project.MavenProject">${project}</project>
+        <siteJnlpFile implementation="java.lang.String">jnlp/launch.jnlp</siteJnlpFile>
+        <jnlpSourceDirectory implementation="java.io.File">${project.build.directory}/jnlp</jnlpSourceDirectory>
+      </configuration>
+      <requirements>
+        <requirement>
+          <role>org.codehaus.doxia.site.renderer.SiteRenderer</role>
+          <field-name>siteRenderer</field-name>
+        </requirement>
+      </requirements>
+    </mojo>
+    <mojo>
+      <goal>jnlp</goal>
+      <description>Packages a jnlp application. &lt;p/&gt; The plugin tries to not re-sign/re-pack if the dependent jar hasn&apos;t changed. As a consequence, if one modifies the pom jnlp config or a keystore, one should clean before rebuilding.</description>
+      <requiresDependencyResolution>runtime</requiresDependencyResolution>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <phase>package</phase>
+      <implementation>org.codehaus.mojo.webstart.JnlpMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-session</executionStrategy>
+      <parameters>
+        <parameter>
+          <name>artifactGroups</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Xxx</description>
+        </parameter>
+        <parameter>
+          <name>basedir</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description></description>
+        </parameter>
+        <parameter>
+          <name>dependencies</name>
+          <type>org.codehaus.mojo.webstart.JnlpMojo$Dependencies</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Xxx</description>
+        </parameter>
+        <parameter>
+          <name>gzip</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Xxx</description>
+        </parameter>
+        <parameter>
+          <name>jnlp</name>
+          <type>org.codehaus.mojo.webstart.JnlpConfig</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Xxx</description>
+        </parameter>
+        <parameter>
+          <name>keystore</name>
+          <type>org.codehaus.mojo.webstart.JnlpMojo$KeystoreConfig</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Xxx</description>
+        </parameter>
+        <parameter>
+          <name>localRepository</name>
+          <type>org.apache.maven.artifact.repository.ArtifactRepository</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description></description>
+        </parameter>
+        <parameter>
+          <name>pack200</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Enables pack200. Requires SDK 5.0.</description>
+        </parameter>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>Project.</description>
+        </parameter>
+        <parameter>
+          <name>settings</name>
+          <type>org.apache.maven.settings.Settings</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>The current user system settings for use in Maven. This is used for &lt;br/&gt; plugin manager API calls.</description>
+        </parameter>
+        <parameter>
+          <name>sign</name>
+          <type>org.codehaus.mojo.webstart.SignConfig</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Xxx</description>
+        </parameter>
+        <parameter>
+          <name>verbose</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Enable verbose.</description>
+        </parameter>
+        <parameter>
+          <name>verifyjar</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Xxx</description>
+        </parameter>
+        <parameter>
+          <name>workDirectory</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>true</editable>
+          <description>Directory to create the resulting artifacts</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <settings implementation="org.apache.maven.settings.Settings">${settings}</settings>
+        <pack200 implementation="boolean" default-value="false"/>
+        <localRepository implementation="org.apache.maven.artifact.repository.ArtifactRepository">${localRepository}</localRepository>
+        <verbose implementation="boolean" default-value="false">${verbose}</verbose>
+        <project implementation="org.apache.maven.project.MavenProject">${project}</project>
+        <workDirectory implementation="java.io.File">${project.build.directory}/jnlp</workDirectory>
+        <verifyjar implementation="boolean" default-value="true"/>
+        <gzip implementation="boolean" default-value="false"/>
+        <basedir implementation="java.io.File">${basedir}</basedir>
+      </configuration>
+      <requirements>
+        <requirement>
+          <role>org.codehaus.plexus.archiver.Archiver</role>
+          <role-hint>zip</role-hint>
+          <field-name>zipArchiver</field-name>
+        </requirement>
+        <requirement>
+          <role>org.apache.maven.project.MavenProjectHelper</role>
+          <field-name>projectHelper</field-name>
+        </requirement>
+        <requirement>
+          <role>org.apache.maven.artifact.resolver.ArtifactResolver</role>
+          <field-name>artifactResolver</field-name>
+        </requirement>
+        <requirement>
+          <role>org.apache.maven.plugin.PluginManager</role>
+          <field-name>pluginManager</field-name>
+        </requirement>
+        <requirement>
+          <role>org.apache.maven.artifact.factory.ArtifactFactory</role>
+          <field-name>artifactFactory</field-name>
+        </requirement>
+      </requirements>
+    </mojo>
+  </mojos>
+  <dependencies/>
+</plugin>

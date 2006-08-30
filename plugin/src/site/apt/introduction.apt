@@ -1,0 +1,105 @@
+ ------
+ Maven Webstart Plugin
+ ------
+ Jerome Lacoste
+ ------
+ 26 Oct 2005
+ ------
+
+Maven Webstart Plugin - Introduction
+
+ A plugin to prepare webstart applications. The current plugin has a single goal {{{jnlp-mojo.html} webstart:jnlp}}
+ whose responsibility is to create a zip file which contains:
+ 
+   * A jnlp file to be fetched and understood by Sun's webstart client.
+
+   * A digitally signed version of the jar artifact produced by the project
+     that has the webstart plugin activated.
+
+   * Digitally signed jar files for each of the transitive dependencies that are part
+     of the runtime classpath. The runtime classpath is calculated by Maven using the
+     dependencies that you have declared within the project.
+     
+   * Optionally Pack200 gzip versions of all the jar files. These become useful
+     if the user chooses to host the webstart application on a servlet container
+     and chooses to use the JnlpDownloadServlet.
+     
+   * Icon image files used by the user's webstart client to represent your webstart application.
+     
+ Common use cases detailing what you might do with the zip file are detailed in
+ this document. However, it's important to understand that the goal's responsibility
+ ends at the creation of the zip file.
+
+
+Features & build stability
+
+ This is a very early but working release. It requires maven 2 (version 2.0.1 and further) to work correctly.
+
+ Note (31/Jan/06): as of today, it is possible to use the plugin as built from the trunk without problem.
+ A stable snapshot will be deployed on the codehaus snapshots repository.
+
+ Once this is done, to accomodate with new forthcoming features and make the plugin more standard, it will be modified in a slightly incompatible and unstable way in the forthcoming days.
+ We expect the uncompatible changes to affect very slighlty your pom and build structure. Nothing very hard to fix but still. Something you may want to plan for.
+
+ In the meantime the plugin build operation will become a little bit harder for a short period of time, because we will depend on unreleased versions of other plugins (in particular the maven-jar-plugin).
+ So if you need a stable version of the plugin pick it from the snapshots repository.
+
+ After that we expect stable snapshots to be regularly delivered.
+
+
+Features:
+
+   * jnlp file generation where information is inserted into a user
+     defined {{{http://jakarta.apache.org/velocity/} Velocity template}}
+
+   * transitive dependencies
+   
+      * possibilities to include/exclude dependencies
+
+   * key generation (thanks to the {{{http://mojo.codehaus.org/keytool-maven-plugin/} keytool-maven-plugin}})
+
+   * jar signing and signing verification
+
+   * pack200 support for compressed versions of the jar files resulting in
+     faster network downloads of your webstart application.
+
+
+Upcoming changes
+
+   * {{{http://jira.codehaus.org/browse/MOJO-266} change default location for resources and template}}. Will probably make the plugin slighly incompatible with older version. It's OK as there's no a single official snapshot release yet.
+
+   * {{{http://jira.codehaus.org/browse/MOJO-263} dealing with already signed jars}}
+
+
+Reported missing features
+
+   * pluggable API for jar signer
+
+   * more support for standalone webstart apps (e.g. download.html/index.html)
+
+   * handling of native libraries
+
+   * ability to launch the application
+
+   * building multiple jnlp app in one zip using one m2 project?? (not sure as this is not a very maven way of doing things)
+
+      * would require merging version.xml
+
+   * what about deploying multiple versions of the same app? Is that ever wanted, e.g. for upgrades?
+
+   * ?? add a new goal to help deal with web applications
+
+      * one step war+webstart generation (one project, webstart plugin used in pre-package phase)
+
+      * more war integration (jnlp, web.xml)
+
+ The plugin can be used to prepare standalone webstart applications or webstart app bundled in war files.
+
+
+Links
+
+  * {{{http://docs.codehaus.org/display/MOJO/Webstart+Plugin} confluence wiki page for the plugin}}
+
+  * {{{http://sun-jnlp-servlet.dev.java.net/} http://sun-jnlp-servlet.dev.java.net/}}
+
+  * {{{http://deployment.dev.java.net/} http://deployment.dev.java.net/}}

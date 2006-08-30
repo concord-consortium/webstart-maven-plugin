@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="plugin/src/main/java"/>
+	<classpathentry kind="src" path="plugin/src/test/java"/>
+	<classpathentry excluding="**" output="plugin/src/main/resources" kind="src" path="plugin/src/main/resources"/>
+	<classpathentry excluding="**" output="plugin/src/test/resources" kind="src" path="plugin/src/test/resources"/>
+	<classpathentry kind="src" path="pack200-jdk15/src/main/java"/>
+	<classpathentry kind="src" path="pack200-anttasks/src/main/java"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER">
+		<accessrules>
+			<accessrule kind="accessible" pattern="com/sun/tools/apache/**"/>
+		</accessrules>
+	</classpathentry>
+	<classpathentry kind="con" path="org.maven.ide.eclipse.MAVEN2_CLASSPATH_CONTAINER"/>
+	<classpathentry kind="lib" path="pack200-anttasks/src/main/resources"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

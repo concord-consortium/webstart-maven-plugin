@@ -135,6 +135,7 @@ public class Generator
 
     	context.put( "outputFile", outputFile.getName() );
         context.put( "mainClass", config.getJnlp().getMainClass() );
+        context.put( "versionedArtifactName", config.getVersionedArtifactName());
         FileWriter writer = new FileWriter( outputFile );
         try
         {

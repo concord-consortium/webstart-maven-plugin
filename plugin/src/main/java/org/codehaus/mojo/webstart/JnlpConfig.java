@@ -60,7 +60,11 @@ public class JnlpConfig
     private boolean versionSnapshots;
     
     private String systemPropertyPrefix = "appSysProp";
-    
+
+	private boolean makeSnapshotsWithNoJNLPVersion;
+
+	private boolean makeJnlpWithVersion = false;
+
     public String getSystemPropertyPrefix() {
 		return systemPropertyPrefix;
 	}
@@ -212,4 +216,35 @@ public class JnlpConfig
 		this.copyJars = copyJars;
 	}
 
+	/**
+	 * If this is true then generator will create jar files that include 
+	 * the snapshot version string.  But do not have a the __V webstart uses
+	 * for versions.  This way they can be referred to by jnlp without versions
+	 * and let webstart handle the snapshot updating.
+	 * 
+	 * This property will only turn on the generation of these jar files.  There
+	 * will be another property to tell the jnlp generator to use these snapshots
+	 * instead of the timestamped versions. 
+	 * 
+	 * @return
+	 */
+	public boolean getMakeSnapshotsWithNoJNLPVersion() {
+		return this.makeSnapshotsWithNoJNLPVersion;
+	}
+	
+	public void setMakeSnapshotsWithNoJNLPVersion(boolean makeNoVersionSnapshots) {
+		this.makeSnapshotsWithNoJNLPVersion = makeNoVersionSnapshots;
+	}
+
+	/**
+	 * Use the artifactName and version to save a jnlp file
+	 * @return
+	 */
+	public boolean getMakeJnlpWithVersion() {
+		return this.makeJnlpWithVersion;
+	}
+	
+	public void setMakeJnlpWithVersion(boolean makeJnlpWithVersion) {
+		this.makeJnlpWithVersion = makeJnlpWithVersion;
+	}
 }

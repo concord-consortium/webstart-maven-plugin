@@ -16,44 +16,46 @@ package org.codehaus.mojo.webstart;
  * limitations under the License.
  */
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
+
+import org.apache.commons.lang.SystemUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.factory.ArtifactFactory;
 import org.apache.maven.artifact.repository.ArtifactRepository;
 import org.apache.maven.artifact.resolver.ArtifactResolver;
 import org.apache.maven.artifact.resolver.filter.AndArtifactFilter;
 import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
-import org.apache.maven.artifact.resolver.filter.IncludesArtifactFilter;
 import org.apache.maven.artifact.resolver.filter.ExcludesArtifactFilter;
+import org.apache.maven.artifact.resolver.filter.IncludesArtifactFilter;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.PluginManager;
 import org.apache.maven.plugin.jar.JarSignMojo;
-import org.apache.maven.plugin.jar.JarSignVerifyMojo;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.MavenProjectHelper;
 import org.apache.maven.settings.Settings;
-
 import org.codehaus.mojo.keytool.GenkeyMojo;
 import org.codehaus.mojo.webstart.generator.Generator;
 import org.codehaus.plexus.archiver.zip.ZipArchiver;
-import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.DirectoryScanner;
-
-import org.apache.commons.lang.SystemUtils;
-
-import java.io.File;
-import java.io.FileFilter;
-import java.io.IOException;
-import java.net.URL;
-import java.net.MalformedURLException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.jar.Manifest;
+import org.codehaus.plexus.util.FileUtils;
 
 /**
  * Packages a jnlp application.
@@ -75,6 +77,14 @@ import java.util.jar.Manifest;
 public class JnlpMojo
     extends AbstractMojo
 {
+	/**
+	 * These shouldn't be necessary, but just incase the main ones in 
+	 * maven change.  They can be found in SnapshotTransform class
+	 */
+    private static final TimeZone UTC_TIME_ZONE = TimeZone.getTimeZone( "UTC" );
+
+    private static final String UTC_TIMESTAMP_PATTERN = "yyyyMMdd.HHmmss";
+
     /**
      * Directory to create the resulting artifacts
      *
@@ -114,7 +124,7 @@ public class JnlpMojo
      */
     private Dependencies dependencies;
 
-    public static class Dependencies
+	public static class Dependencies
     {
         private List includes;
 
@@ -328,33 +338,50 @@ public class JnlpMojo
 
     }
 
-    private FileFilter modifiedFileFilter = new FileFilter()
+    /**
+     * The maven-xbean-plugin can't handle anon inner classes
+     * 
+     * @author scott
+     *
+     */
+    private class ModifiedFileFilter 
+    implements FileFilter
     {
-        public boolean accept( File pathname )
-        {
-            boolean modified = pathname.lastModified() > getStartTime();
-            getLog().debug( "File: " + pathname.getName() + " modified: " + modified );
-            getLog().debug( "lastModified: " + pathname.lastModified() + " plugin start time " + getStartTime() );
-            return modified;
-        }
-    };
+    	public boolean accept( File pathname )
+    	{
+    		boolean modified = pathname.lastModified() > getStartTime();
+    		getLog().debug( "File: " + pathname.getName() + " modified: " + modified );
+    		getLog().debug( "lastModified: " + pathname.lastModified() + " plugin start time " + getStartTime() );
+    		return modified;
+    	}
 
-    private FileFilter jarFileFilter = new FileFilter()
-    {
-        public boolean accept( File pathname )
-        {
-            return pathname.isFile() && pathname.getName().endsWith( ".jar" );
-        }
-    };
+    }
+    private FileFilter modifiedFileFilter = new ModifiedFileFilter();
 
-    private FileFilter pack200FileFilter = new FileFilter()
-    {
-        public boolean accept( File pathname )
-        {
-            return pathname.isFile() &&
-                ( pathname.getName().endsWith( ".jar.pack.gz" ) || pathname.getName().endsWith( ".jar.pack" ) );
-        }
-    };
+    /**
+	 * @author scott
+	 *
+	 */
+	private final class JarFileFilter implements FileFilter {
+		public boolean accept( File pathname )
+		{
+		    return pathname.isFile() && pathname.getName().endsWith( ".jar" );
+		}
+	}
+    private FileFilter jarFileFilter = new JarFileFilter();
+
+	/**
+	 * @author scott
+	 *
+	 */
+	private final class Pack200FileFilter implements FileFilter {
+		public boolean accept( File pathname )
+		{
+		    return pathname.isFile() &&
+		        ( pathname.getName().endsWith( ".jar.pack.gz" ) || pathname.getName().endsWith( ".jar.pack" ) );
+		}
+	}
+    private FileFilter pack200FileFilter = new Pack200FileFilter();
 
     // the jars to sign and pack are selected if they are newer than the plugin start.
     // as the plugin copies the new versions locally before signing/packing them
@@ -383,6 +410,8 @@ public class JnlpMojo
 
     // initialized by execute
     private long startTime;
+
+	private String jnlpBuildVersion;
 
     private long getStartTime()
     {
@@ -585,8 +614,47 @@ public class JnlpMojo
                 }
             }
             */
+
+            // make the snapshot copies if necessary
+            if(jnlp.getMakeSnapshotsWithNoJNLPVersion()) {
+            	for(int i=0; i<packagedJnlpArtifacts.size(); i++){
+            		Artifact artifact = (Artifact)packagedJnlpArtifacts.get(i);
+            		if(!artifact.isSnapshot()){
+            			continue;
+            		}
+            		
+            		String jarBaseName = getArtifactJnlpBaseName(artifact);
+
+            		String snapshot_outputName = jarBaseName + "-" + 
+            		artifact.getBaseVersion() + ".jar";
+
+            		File targetDirectory = getArtifactJnlpDirFile(artifact);
+            			
+            		
+                    File versionedFile = 
+                    	new File(targetDirectory, getArtifactJnlpName(artifact));
+                    
+            		// this is method should reduce the number of times a file 
+            		// needs to be downloaded by an applet or webstart.  However
+            		// it isn't very safe if multiple users are running this. 
+            		// this method will be comparing the date of the file in the
+            		// current users local maven repo with the last generated 
+            		// file.  If a new user just starts using maven all of their
+            		// local repo files will be newer.  
+            		// This file won't be signed, we should copy the version
+            		copyFileToDirectoryIfNecessary( versionedFile, targetDirectory, 
+            				snapshot_outputName );
+            	}
+            }
             
-            generateJnlpFile( workDirectory );
+            File jnlpDirectory = workDirectory;
+            if(jnlp.getGroupIdDirs()) {
+            	// store the jnlp in the same layout as the jar files
+            	// if groupIdDirs is true
+            	jnlpDirectory = 
+            		getArtifactJnlpDirFile(getProject().getArtifact());
+            }
+            generateJnlpFile( jnlpDirectory );
 
             if(jnlp.getCreateZip()) {
             	// package the zip. Note this is very simple. Look at the JarMojo which does more things.
@@ -828,17 +896,7 @@ public class JnlpMojo
 
                 String outputName = getArtifactJnlpName(artifact);
 
-                File targetDirectory = getWorkDirectory();
-                
-                if(jnlp.getGroupIdDirs()){
-                	targetDirectory = new File(targetDirectory, artifact.getGroupId());
-
-                	// FIXME should check return value
-                	targetDirectory.mkdir();                	
-                } 
-
-                // This is the path to the outputFile from the workDirectory
-                String outputPath = getArtifactJnlpDir(artifact) + outputName;
+                File targetDirectory = getArtifactJnlpDirFile(artifact); 
 
                 if(jnlp.getCopyJars()) {
                 	boolean copied = copyFileToDirectoryIfNecessary( toCopy, targetDirectory, 
@@ -851,7 +909,7 @@ public class JnlpMojo
                 }
                 	
                 artifactList.add( artifact );
-
+                
                 if ( artifactContainsClass( artifact, jnlp.getMainClass() ) )
                 {
                     if ( artifactWithMainClass == null )
@@ -910,7 +968,14 @@ public class JnlpMojo
     public String getArtifactJnlpVersion(Artifact artifact)
     {
     	// FIXME this should convert the version so it is jnlp safe
-    	return  artifact.getVersion();    	
+    	// FIXME this isn't correctly resovling some artifacts to their
+    	// actual version numbers.  This appears to happen based on the
+    	// metadata files stored in the local repository.  I wasn't able
+    	// narrow down exactly what was going on, but I think it is due
+    	// to running the jnlp goal without the -U (update snapshots) 
+    	// if a snapshot is built locally then its metadata is in a different
+    	// state than if it is downloaded from a remote repository.
+    	return  artifact.getVersion();   	
     }
 
     /**
@@ -973,10 +1038,21 @@ public class JnlpMojo
     public String getArtifactJnlpDir(Artifact artifact)
     {
     	if(jnlp != null && jnlp.getGroupIdDirs()){
-        	return artifact.getGroupId() + File.separatorChar;
+    		String groupPath = artifact.getGroupId().replace('.', '/');
+    		return groupPath + "/" + artifact.getArtifactId() + "/";
         } else {
         	return "";
         }    	
+    }
+    
+    public File getArtifactJnlpDirFile(Artifact artifact)
+    {
+        File targetDirectory = 
+        	new File(getWorkDirectory(), getArtifactJnlpDir(artifact));
+        
+        targetDirectory.mkdirs();
+
+        return targetDirectory;
     }
     
     private boolean artifactContainsClass( Artifact artifact, final String mainClass )
@@ -1060,7 +1136,9 @@ public class JnlpMojo
             resourceLoaderPath = new File( jnlp.getInputTemplateResourcePath() );
         }
 
-        Generator jnlpGenerator = new Generator( this, resourceLoaderPath, jnlpOutputFile, templateFileName );
+        Generator jnlpGenerator = 
+        	new Generator( this, resourceLoaderPath, jnlpOutputFile, 
+        			templateFileName );
         try
         {
             jnlpGenerator.generate();
@@ -1070,8 +1148,119 @@ public class JnlpMojo
             getLog().debug( e .toString() );
             throw new MojoExecutionException( "Could not generate the JNLP deployment descriptor", e );
         }
+
+        // optionally copy the outputfile to one with the version string appended
+        if(jnlp.getMakeJnlpWithVersion() &&
+        		hasJnlpChanged(outputDirectory, jnlpOutputFile)){
+        	
+        	try {
+        		String versionedJnlpName =  getVersionedArtifactName() + ".jnlp";
+        		File versionedJnlpOutputFile = new File( outputDirectory, versionedJnlpName );
+        		FileUtils.copyFile(jnlpOutputFile, versionedJnlpOutputFile);
+        		
+        		writeLastJnlpVersion(outputDirectory, getJnlpBuildVersion());
+			} catch (IOException e) {
+				e.printStackTrace();
+			}        	
+        }
     }
 
+    public File getLastVersionFile(File outputDirectory)
+    {
+    	String artifactId = getProject().getArtifactId();
+    	return new File(outputDirectory, 
+    			artifactId + "-CURRENT_VERSION.txt");
+    }
+    
+    /**
+     * If there is no version file then this returns null
+     * @return
+     */
+    public String readLastJnlpVersion(File outputDirectory)
+    {
+    	File currentVersionFile = getLastVersionFile(outputDirectory); 
+    		
+    	// check if this file has changed from the old version
+		if(!currentVersionFile.exists()){
+			return null; 
+		}
+
+		try {
+			String oldVersion = FileUtils.fileRead(currentVersionFile);
+			return oldVersion.trim();
+		} catch (IOException e) {
+			e.printStackTrace();			
+		}
+
+		return null;
+    }
+    
+    public void writeLastJnlpVersion(File outputDirectory, String version)
+    {
+    	File currentVersionFile = getLastVersionFile(outputDirectory); 
+		
+    	try {
+			FileUtils.fileWrite(currentVersionFile.getAbsolutePath(), version);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}    	
+    }
+    
+    public boolean hasJnlpChanged(File outputDirectory, File newJnlpFile)
+    {
+    	String artifactId = getProject().getArtifactId();
+
+		String oldVersion = readLastJnlpVersion(outputDirectory);
+
+		if(oldVersion == null) {
+			return true;
+		}
+
+		// look for the old version
+		String oldVersionedJnlpName = 
+			artifactId + "-" + oldVersion + ".jnlp";
+		File oldVersionedJnlpFile = 
+			new File(outputDirectory, oldVersionedJnlpName);
+			
+		if(!oldVersionedJnlpFile.exists()) {
+			return true;
+		}
+
+		try {
+			String oldJnlpText = FileUtils.fileRead(oldVersionedJnlpFile);
+			String newJnlpText = FileUtils.fileRead(newJnlpFile);
+
+			// If the strings match then there is no new version
+			if(oldJnlpText.equals(newJnlpText)){
+				return false;
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		return true;
+
+    }
+    
+    public String getJnlpBuildVersion()
+    {
+    	if(jnlpBuildVersion != null) {
+    		return jnlpBuildVersion;
+    	}
+
+    	DateFormat utcDateFormatter = new SimpleDateFormat( UTC_TIMESTAMP_PATTERN );
+    	utcDateFormatter.setTimeZone( UTC_TIME_ZONE );
+    	String timestamp = utcDateFormatter.format( new Date() );
+
+    	String version = getProject().getVersion();
+    	if(version.endsWith("SNAPSHOT")){
+    		version = version.replaceAll("SNAPSHOT", timestamp);
+    	}
+    	
+    	jnlpBuildVersion = version;
+    	return version;
+    }
+    
     private void logCollection( final String prefix, final Collection collection )
     {
         getLog().debug( prefix + " " + collection );
@@ -1345,5 +1534,12 @@ public class JnlpMojo
         }
         return "1.0+";
     }
+
+	/**
+	 * @return
+	 */
+	public String getVersionedArtifactName() {
+		return getProject().getArtifactId() + "-" + getJnlpBuildVersion();
+	}
 }
 

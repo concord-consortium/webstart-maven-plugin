@@ -27,6 +27,7 @@ import org.codehaus.mojo.webstart.JnlpMojo;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.io.Writer;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -102,9 +103,18 @@ public class Generator
             throw iae;
         }
     }
-
+    
     public void generate()
         throws Exception
+    {
+    	FileWriter writer = new FileWriter( outputFile );
+    	generate(writer, outputFile.getName(), 
+    			config.getVersionedArtifactName());
+    }
+    
+    public void generate(Writer writer, String outputFileName,
+    		String versionedArtifactName)
+    	throws Exception
     {
         VelocityContext context = new VelocityContext();
 
@@ -133,10 +143,10 @@ public class Generator
 
     	context.put( "systemProperties", getPropertiesText(config));    	
 
-    	context.put( "outputFile", outputFile.getName() );
+    	context.put( "outputFile", outputFileName );
         context.put( "mainClass", config.getJnlp().getMainClass() );
-        context.put( "versionedArtifactName", config.getVersionedArtifactName());
-        FileWriter writer = new FileWriter( outputFile );
+        context.put( "versionedArtifactName", versionedArtifactName );
+
         try
         {
             //parse the template

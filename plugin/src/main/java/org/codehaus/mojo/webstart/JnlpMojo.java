@@ -20,8 +20,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.StringWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.DateFormat;
@@ -1139,30 +1141,41 @@ public class JnlpMojo
         Generator jnlpGenerator = 
         	new Generator( this, resourceLoaderPath, jnlpOutputFile, 
         			templateFileName );
+        
+        // decide if this new jnlp is actually different from the old
+        // jnlp file. 
+        if(!hasJnlpChanged(outputDirectory, jnlpGenerator)){
+        	return;
+        }
+
         try
         {
-            jnlpGenerator.generate();
+        	// this writes out the file
+        	jnlpGenerator.generate();
         }
         catch ( Exception e )
         {
-            getLog().debug( e .toString() );
-            throw new MojoExecutionException( "Could not generate the JNLP deployment descriptor", e );
+        	getLog().debug( e .toString() );
+        	throw new MojoExecutionException( "Could not generate the JNLP deployment descriptor", e );
         }
 
         // optionally copy the outputfile to one with the version string appended
-        if(jnlp.getMakeJnlpWithVersion() &&
-        		hasJnlpChanged(outputDirectory, jnlpOutputFile)){
-        	
+        // use the generator to write out a copy of the file, use its new name
+        if(jnlp.getMakeJnlpWithVersion()){
         	try {
-        		String versionedJnlpName =  getVersionedArtifactName() + ".jnlp";
-        		File versionedJnlpOutputFile = new File( outputDirectory, versionedJnlpName );
-        		FileUtils.copyFile(jnlpOutputFile, versionedJnlpOutputFile);
-        		
+        		String versionedJnlpName =  getVersionedArtifactName() + ".jnlp";            		
+        		File versionedJnlpOutputFile = 
+        			new File( outputDirectory, versionedJnlpName );
+        		FileWriter versionedJnlpWriter = 
+        			new FileWriter(versionedJnlpOutputFile);
+        		jnlpGenerator.generate(versionedJnlpWriter, 
+        				versionedJnlpName, getVersionedArtifactName());
+
         		writeLastJnlpVersion(outputDirectory, getJnlpBuildVersion());
-			} catch (IOException e) {
-				e.printStackTrace();
-			}        	
-        }
+        	} catch (Exception e) {
+        		e.printStackTrace();
+        	}        	        		
+        }        	
     }
 
     public File getLastVersionFile(File outputDirectory)
@@ -1206,7 +1219,17 @@ public class JnlpMojo
 		}    	
     }
     
-    public boolean hasJnlpChanged(File outputDirectory, File newJnlpFile)
+    /**
+     * This method uses the generator because of the timestamp that can be
+     * included in the file.  To do the comparison it uses the current 
+     * dependencies and system properties, but it uses the old file name
+     * and old versionedArtifactName
+     * 
+     * @param outputDirectory
+     * @param generator
+     * @return
+     */
+    public boolean hasJnlpChanged(File outputDirectory, Generator generator)
     {
     	String artifactId = getProject().getArtifactId();
 
@@ -1217,8 +1240,8 @@ public class JnlpMojo
 		}
 
 		// look for the old version
-		String oldVersionedJnlpName = 
-			artifactId + "-" + oldVersion + ".jnlp";
+		String oldVersionedArtifactName = artifactId + "-" + oldVersion;
+		String oldVersionedJnlpName = oldVersionedArtifactName + ".jnlp";
 		File oldVersionedJnlpFile = 
 			new File(outputDirectory, oldVersionedJnlpName);
 			
@@ -1228,13 +1251,16 @@ public class JnlpMojo
 
 		try {
 			String oldJnlpText = FileUtils.fileRead(oldVersionedJnlpFile);
-			String newJnlpText = FileUtils.fileRead(newJnlpFile);
-
+			StringWriter updatedJnlpWriter = new StringWriter();
+			generator.generate(updatedJnlpWriter, 
+					oldVersionedJnlpName, oldVersionedArtifactName);
+			String updatedJnlpText = updatedJnlpWriter.toString();
+			
 			// If the strings match then there is no new version
-			if(oldJnlpText.equals(newJnlpText)){
+			if(oldJnlpText.equals(updatedJnlpText)){
 				return false;
 			}
-		} catch (IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		

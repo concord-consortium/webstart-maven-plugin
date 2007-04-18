@@ -59,28 +59,28 @@ public class Unpack200Task extends Unpack {
     }
 	
     protected void extract() {
-	System.out.println("Unpacking with Unpack200");
-	System.out.println("Source File :" + source);
-	System.out.println("Dest.  File :" + dest);
+    	System.out.println("Unpacking with Unpack200");
+    	System.out.println("Source File :" + source);
+    	System.out.println("Dest.  File :" + dest);
 
-	try { 
-	    FileInputStream fis = new FileInputStream(source);
+    	try { 
+    		FileInputStream fis = new FileInputStream(source);
 
-	    InputStream is = (FileType.gzip == getMagic(source))
-		? new BufferedInputStream(new GZIPInputStream(fis))
-		: new BufferedInputStream(fis);
+    		InputStream is = (FileType.gzip == getMagic(source))
+    		? new BufferedInputStream(new GZIPInputStream(fis))
+    		: new BufferedInputStream(fis);
 
-	    FileOutputStream fos = new FileOutputStream(dest);
-	    JarOutputStream jout = new JarOutputStream(
-					new BufferedOutputStream(fos));
-	    
-	    unpkr.unpack(is, jout);
-            is.close();
-  	    jout.close();
+    		FileOutputStream fos = new FileOutputStream(dest);
+    		JarOutputStream jout = new JarOutputStream(
+    				new BufferedOutputStream(fos));
 
-	} catch (IOException ioe) {
-	    throw new BuildException("Error in unpack200");	
-        }
+    		unpkr.unpack(is, jout);
+    		is.close();
+    		jout.close();
+
+    	} catch (IOException ioe) {
+    		throw new BuildException("Error in unpack200", ioe);	
+    	}
 
     }
 

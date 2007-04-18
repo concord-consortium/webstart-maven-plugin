@@ -6,7 +6,6 @@
  */
 package com.sun.tools.apache.ant.pack200;
 
-import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.*;
 import org.apache.tools.ant.taskdefs.*;
 import java.util.*;
@@ -227,5 +226,14 @@ public class Pack200Task extends Pack {
         } finally {
 	    if (doRepack) packFile.delete();
 	}
+    }
+
+	/**
+     * @param pack200Jar
+     */
+    public void setDestfile(File pack200Jar)
+    {
+	    // TODO Auto-generated method stub
+	    
     }
 }

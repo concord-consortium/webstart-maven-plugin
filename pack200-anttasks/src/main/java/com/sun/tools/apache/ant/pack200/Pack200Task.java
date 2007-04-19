@@ -233,7 +233,6 @@ public class Pack200Task extends Pack {
      */
     public void setDestfile(File pack200Jar)
     {
-	    // TODO Auto-generated method stub
-	    
+    	zipFile = pack200Jar;	    
     }
 }

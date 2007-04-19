@@ -55,6 +55,7 @@ public class Pack200
                 pack200Jar.delete();
             }
 
+            
             packTask = new Pack200Task();
             packTask.setProject( new Project() );
             packTask.setDestfile( pack200Jar );
@@ -91,7 +92,12 @@ public class Pack200
             unpackTask.setProject( new Project() );
             unpackTask.setDest( jarFile );
             unpackTask.setSrc( packFiles[i] );
-            unpackTask.execute();
+            try {
+            	unpackTask.execute();
+            } catch (Throwable e){
+            	throw new RuntimeException("Error Unpacking: " + packFiles[i], 
+            			e);
+            }
             jarFile.setLastModified( packFiles[i].lastModified() );
         }
     }

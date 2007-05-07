@@ -16,13 +16,13 @@ package org.codehaus.mojo.webstart;
  * limitations under the License.
  */
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -31,11 +31,21 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.Vector;
+import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.lang.SystemUtils;
 import org.apache.maven.artifact.Artifact;
@@ -50,14 +60,19 @@ import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.PluginManager;
 import org.apache.maven.plugin.jar.JarSignMojo;
+import org.apache.maven.plugin.jar.JarSignVerifyMojo;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.MavenProjectHelper;
 import org.apache.maven.settings.Settings;
+import org.apache.tools.ant.BuildException;
 import org.codehaus.mojo.keytool.GenkeyMojo;
 import org.codehaus.mojo.webstart.generator.Generator;
 import org.codehaus.plexus.archiver.zip.ZipArchiver;
 import org.codehaus.plexus.util.DirectoryScanner;
 import org.codehaus.plexus.util.FileUtils;
+import org.codehaus.plexus.util.IOUtil;
+import org.codehaus.plexus.util.cli.StreamFeeder;
+import org.codehaus.plexus.util.cli.StreamPumper;
 
 /**
  * Packages a jnlp application.
@@ -188,40 +203,6 @@ public class JnlpMojo
      * @parameter
      */
     private SignConfig sign;
-
-    public static class KeystoreConfig
-    {
-        private boolean delete;
-
-        private boolean gen;
-
-        public boolean isDelete()
-        {
-            return delete;
-        }
-
-        public void setDelete( boolean delete )
-        {
-            this.delete = delete;
-        }
-
-        public boolean isGen()
-        {
-            return gen;
-        }
-
-        public void setGen( boolean gen )
-        {
-            this.gen = gen;
-        }
-    }
-
-    /**
-     * Xxx
-     *
-     * @parameter
-     */
-    private KeystoreConfig keystore;
 
     /**
      * Xxx
@@ -406,7 +387,7 @@ public class JnlpMojo
      */
     private Map jnlpArtifactGroups = new HashMap();
     
-    private ArrayList copiedJnlpArtifacts = new ArrayList();
+    private ArrayList processedJnlpArtifacts = new ArrayList();
     
     private Artifact artifactWithMainClass;
 
@@ -414,6 +395,8 @@ public class JnlpMojo
     private long startTime;
 
 	private String jnlpBuildVersion;
+
+	private File temporaryDirectory;
 
     private long getStartTime()
     {
@@ -476,179 +459,6 @@ public class JnlpMojo
                     */
             }
 
-            // native libsi
-            // FIXME
-
-            /*
-            for( Iterator it = getNativeLibs().iterator(); it.hasNext(); ) {
-                Artifact artifact = ;
-                Artifact copiedArtifact = 
-
-                // similar to what we do for jars, except that we must pack them into jar instead of copying.
-                // them
-                    File nativeLib = artifact.getFile()
-                    if(! nativeLib.endsWith( ".jar" ) ){
-                        getLog().debug("Wrapping native library " + artifact + " into jar." );
-                        File nativeLibJar = new File( applicationFolder, xxx + ".jar");
-                        Jar jarTask = new Jar();
-                        jarTask.setDestFile( nativeLib );
-                        jarTask.setBasedir( basedir );
-                        jarTask.setIncludes( nativeLib );
-                        jarTask.execute();
-
-                        nativeLibJar.setLastModified( nativeLib.lastModified() );
-              
-                        copiedArtifact = new ....
-                    } else {
-                        getLog().debug( "Copying native lib " + artifact );
-                        copyFileToDirectory( artifact.getFile(), applicationFolder );
-  
-                        copiedArtifact = artifact;
-                    }
-                    copiedNativeArtifacts.add( copiedArtifact );
-                }
-            }
-            */
-
-            //
-            // pack200 and jar signing
-            //
-            if ( ( pack200 || sign != null ) && getLog().isDebugEnabled() )
-            {
-                logCollection(
-                    "Some dependencies may be skipped. Here's the list of the artifacts that should be signed/packed: ",
-                    copiedJnlpArtifacts );
-            }
-
-            File [] copiedJars = new File [copiedJnlpArtifacts.size()];
-            copiedJnlpArtifacts.toArray(copiedJars);
-
-            if ( sign != null )
-            {
-
-                if ( keystore != null && keystore.isGen() )
-                {
-                    if ( keystore.isDelete() )
-                    {
-                        deleteKeyStore();
-                    }
-                    genKeyStore();
-                }
-                
-                if ( pack200 )
-                {
-                    // http://java.sun.com/j2se/1.5.0/docs/guide/deployment/deployment-guide/pack200.html
-                    // we need to pack then unpack the files before signing them
-                	
-                	// There is no need to gz them if we are just going to uncompress them
-                	// again. (gz isn't losy)
-                    Pack200.packJars( copiedJars, false );
-                    
-                    File [] packedJars = new File[copiedJars.length];
-                    for(int i=0; i<packedJars.length; i++){
-                    	packedJars[i] = new File(copiedJars[i].getAbsolutePath() + ".pack");
-                    }
-                    Pack200.unpackJars( packedJars );
-                    
-                    // specs says that one should do it twice when there are unsigned jars??
-                    // I don't know about the unsigned part, but I found a jar
-                    // that had to be packed, unpacked, packed, and unpacked before
-                    // it could be signed and packed correctly.
-                    // I suppose the best way to do this would be to try the signature
-                    // and if it fails then pack it again, instead of packing and unpack
-                    // every single jar
-                    if(sign.getPack200Twice()) {
-                    	// the pack jars verifies the signature of the jar before
-                    	// it packs it.  So the jar needs to be signed first.
-                    	// unless there is a way to turn off this verification
-                        int signedJars = signJars( workDirectory, copiedJars );
-                        if ( signedJars != copiedJnlpArtifacts.size() )
-                        {
-                            throw new IllegalStateException(
-                                "the number of signed artifacts differ from the number of modified artifacts. Implementation error" );
-                        }
-                    	
-                    	
-                        Pack200.packJars( copiedJars, false );
-                        Pack200.unpackJars( packedJars );                    	
-                    }
-                    
-                    
-                    // Pack200.unpackJars( applicationDirectory, updatedPack200FileFilter );
-                }
-
-                int signedJars = signJars( workDirectory, copiedJars );
-                if ( signedJars != copiedJnlpArtifacts.size() )
-                {
-                    throw new IllegalStateException(
-                        "the number of signed artifacts differ from the number of modified artifacts. Implementation error" );
-                }
-            }
-            if ( pack200 )
-            {
-                getLog().debug( "packing jars" );
-                Pack200.packJars( copiedJars, this.gzip );
-            }
-
-            /*
-            if (sign.getPack200SignLoop()) {
-            	// unpack the jar then verify it with the jarsigner, if it fails
-            	// repeat
-                File [] packedGzJars = new File[copiedJars.length];
-                for(int i=0; i<packedGzJars.length; i++){
-                	packedGzJars[i] = new File(copiedJars[i].getAbsolutePath() + ".pack.gz");
-                }
-
-                // unpack all the jars
-                Pack200.unpackJars(packedGzJars);
-                                
-                for(int i=0; i<copiedJars.length; i++){
-                	JarSignVerifyMojo verifier = new JarSignVerifyMojo();
-                	verifier.setJarPath(copiedJars[i]);
-                	verifier.setLog(getLog());
-                	verifier.setErrorWhenNotSigned(false);
-                	
-                	verifier.execute();
-                	if(!verifier.isSigned()){
-                		// unpacking failed.  so we need to repack
-                		
-                	}
-                }
-            }
-            */
-
-            // make the snapshot copies if necessary
-            if(jnlp.getMakeSnapshotsWithNoJNLPVersion()) {
-            	for(int i=0; i<packagedJnlpArtifacts.size(); i++){
-            		Artifact artifact = (Artifact)packagedJnlpArtifacts.get(i);
-            		if(!artifact.isSnapshot()){
-            			continue;
-            		}
-            		
-            		String jarBaseName = getArtifactJnlpBaseName(artifact);
-
-            		String snapshot_outputName = jarBaseName + "-" + 
-            		artifact.getBaseVersion() + ".jar";
-
-            		File targetDirectory = getArtifactJnlpDirFile(artifact);
-            			
-            		
-                    File versionedFile = 
-                    	new File(targetDirectory, getArtifactJnlpName(artifact));
-                    
-            		// this is method should reduce the number of times a file 
-            		// needs to be downloaded by an applet or webstart.  However
-            		// it isn't very safe if multiple users are running this. 
-            		// this method will be comparing the date of the file in the
-            		// current users local maven repo with the last generated 
-            		// file.  If a new user just starts using maven all of their
-            		// local repo files will be newer.  
-            		// This file won't be signed, we should copy the version
-            		copyFileToDirectoryIfNecessary( versionedFile, targetDirectory, 
-            				snapshot_outputName );
-            	}
-            }
-            
             File jnlpDirectory = workDirectory;
             if(jnlp.getGroupIdDirs()) {
             	// store the jnlp in the same layout as the jar files
@@ -847,9 +657,10 @@ public class JnlpMojo
      * collect all the runtime scope dependencies for inclusion in the .zip and signing.
      *
      * @throws IOException
+     * @throws MojoExecutionException 
      */
     private void processDependencies()
-        throws IOException
+        throws IOException, MojoExecutionException
     {
 
         processDependency( getProject().getArtifact(), packagedJnlpArtifacts );
@@ -866,78 +677,338 @@ public class JnlpMojo
                 processDependency( artifact , packagedJnlpArtifacts);
             }
         }
+        
+        // Check if the temporaryDirectory is empty, if so delete it
+        File tmpDirectory = getTemporaryDirectory();
+        File [] tmpArtifactDirs = tmpDirectory.listFiles();
+        if(tmpArtifactDirs != null && tmpArtifactDirs.length != 0){
+        	throw new MojoExecutionException("Left over files in : " + tmpDirectory);        	
+        }
+        
+        tmpDirectory.delete();
     }
 
     private void processDependency( Artifact artifact , List artifactList)
-        throws IOException
+        throws IOException, MojoExecutionException
     {
         // TODO: scope handler
-        // Include runtime and compile time libraries
-        if ( !Artifact.SCOPE_PROVIDED.equals( artifact.getScope() ) &&
-            !Artifact.SCOPE_TEST.equals( artifact.getScope() ) )
+    	// skip provided and test scopes
+        if ( Artifact.SCOPE_PROVIDED.equals( artifact.getScope() ) ||
+            Artifact.SCOPE_TEST.equals( artifact.getScope() ) )
         {
-            String type = artifact.getType();
-            if ( "jar".equals( type ) || "nar".equals( type ) )
-            {
-
-                // FIXME when signed, we should update the manifest.
-                // see http://www.mail-archive.com/turbine-maven-dev@jakarta.apache.org/msg08081.html
-                // and maven1: maven-plugins/jnlp/src/main/org/apache/maven/jnlp/UpdateManifest.java
-                // or shouldn't we?  See MOJO-7 comment end of October.
-                final File toCopy = artifact.getFile();
-
-                if ( toCopy == null )
-                {
-                    getLog().error( "artifact with no file: " + artifact );
-                    getLog().error( "artifact download url: " + artifact.getDownloadUrl() );
-                    getLog().error( "artifact repository: " + artifact.getRepository() );
-                    getLog().error( "artifact repository: " + artifact.getVersion() );
-                    throw new IllegalStateException(
-                        "artifact " + artifact + " has no matching file, why? Check the logs..." );
-                }
-
-                String outputName = getArtifactJnlpName(artifact);
-
-                File targetDirectory = getArtifactJnlpDirFile(artifact); 
-
-                if(jnlp.getCopyJars()) {
-                	boolean copied = copyFileToDirectoryIfNecessary( toCopy, targetDirectory, 
-                			outputName );
-
-                	if ( copied )
-                	{
-                		this.copiedJnlpArtifacts.add(new File(targetDirectory, outputName));
-                	}
-                }
-                	
-                artifactList.add( artifact );
-                
-                if ( artifactContainsClass( artifact, jnlp.getMainClass() ) )
-                {
-                    if ( artifactWithMainClass == null )
-                    {
-                        artifactWithMainClass = artifact;
-                        getLog().debug( "Found main jar. Artifact " + artifactWithMainClass +
-                            " contains the main class: " + jnlp.getMainClass() );
-                    }
-                    else
-                    {
-                        getLog().warn( "artifact " + artifact + " also contains the main class: " +
-                            jnlp.getMainClass() + ". IGNORED." );
-                    }
-                }
-            }
-            else
-            // FIXME how do we deal with native libs?
-            // we should probably identify them and package inside jars that we timestamp like the native lib
-            // to avoid repackaging every time. What are the types of the native libs?
-            {
-                getLog().debug( "Skipping artifact of type " + type + " for " + getWorkDirectory().getName() );
-            }
-            // END COPY
+        	return;
         }
+        
+        String type = artifact.getType();
+        
+        // skip artifacts that are not jar or nar
+        // nar is how we handle native libraries 
+        if ( !("jar".equals( type )) && !("nar".equals( type )))
+        {
+        	getLog().debug( "Skipping artifact of type " + type + " for " + 
+        			getWorkDirectory().getName() );
+        	return;
+        }
+        
+        
+        // FIXME when signed, we should update the manifest.
+        // see http://www.mail-archive.com/turbine-maven-dev@jakarta.apache.org/msg08081.html
+        // and maven1: maven-plugins/jnlp/src/main/org/apache/maven/jnlp/UpdateManifest.java
+        // or shouldn't we?  See MOJO-7 comment end of October.
+        final File toCopy = artifact.getFile();
+
+        if ( toCopy == null )
+        {
+        	getLog().error( "artifact with no file: " + artifact );
+        	getLog().error( "artifact download url: " + artifact.getDownloadUrl() );
+        	getLog().error( "artifact repository: " + artifact.getRepository() );
+        	getLog().error( "artifact repository: " + artifact.getVersion() );
+        	throw new IllegalStateException(
+        			"artifact " + artifact + " has no matching file, why? Check the logs..." );
+        }
+
+        // check if this artifact has the main class in it
+        if ( artifactContainsClass( artifact, jnlp.getMainClass() ) )
+        {
+        	if ( artifactWithMainClass == null )
+        	{
+        		artifactWithMainClass = artifact;
+        		getLog().debug( "Found main jar. Artifact " + artifactWithMainClass +
+        				" contains the main class: " + jnlp.getMainClass() );
+        	}
+        	else
+        	{
+        		getLog().warn( "artifact " + artifact + " also contains the main class: " +
+        				jnlp.getMainClass() + ". IGNORED." );
+        	}
+        }
+
+        // Add the artifact to the list even if it is not processed
+        artifactList.add( artifact );
+
+        String outputName = getArtifactJnlpName(artifact);
+
+        File targetDirectory = getArtifactJnlpDirFile(artifact); 
+
+        // Check if this file needs to be updated in the targetDirectory
+        // currently this check is just based on the existance of a jar and if the 
+        // modified time of the jar in the maven cache is newer or older than 
+        // that in the targetDirectory.  It would be better to use the version of the 
+        // jar  
+        if(!needsUpdating(toCopy, targetDirectory, outputName)){
+        	getLog().info( "skipping " + artifact + " it has already been processed");
+        	return;
+        }
+
+        // Instead of copying the file to its final location we make a temporary
+        // folder and put the jar there.  This way if something fails we won't
+        // leave bad files in the final output folder
+        File tmpArtifactDirectory = getArtifactTemporaryDirFile(artifact);
+        File currentJar = new File(tmpArtifactDirectory, outputName);
+        
+        FileUtils.copyFile( toCopy, currentJar);
+
+        //
+        // pack200 and jar signing
+        //
+        
+        // This used to be conditional based on a sign config and 
+        // a pack boolean.  We now just try to do these things all the time
+        
+        // there used to be some automatic keystore generation here but
+        // we aren't using it anymore
+
+        // http://java.sun.com/j2se/1.5.0/docs/guide/deployment/deployment-guide/pack200.html
+        // we need to pack then unpack the files before signing them
+
+        File packedJar = new File(currentJar.getAbsolutePath() + ".pack");
+
+        // There is no need to gz them if we are just going to uncompress them
+        // again. (gz isn't losy like pack is)
+        // We should handle the case where a jar cannot be packed.
+        String shortName = getArtifactFlatPath(artifact) + "/" + outputName;
+        boolean doPack200 = true;
+        
+        // We should remove any previous signature information.  Signatures on the file
+        // mess up verification of the signature, because there ends up being 2 signatures
+        // in the jar.  The pack code does a signature verification before packing so 
+        // to be safe we want to remove any signatures before we do any packing.
+        removeSignatures(currentJar, shortName);
+        
+        getLog().info("packing : " + shortName);        
+        try {
+        	Pack200.packJar( currentJar, false );
+        } catch (BuildException e){
+        	// it will throw an ant.BuildException if it can't pack the jar
+        	// One example is with
+        	//  <groupId>com.ibm.icu</groupId>
+        	//  <artifactId>icu4j</artifactId>
+        	//  <version>2.6.1</version>
+        	// That jar has some class that causes the packing code to die trying
+        	// to read it in.
+        	
+        	// Another time it will not be able to pack the jar if it has an invalid
+        	// signature.  That one we can fix by removing the signature
+        	getLog().warn("Cannot pack: " + artifact, e);
+        	doPack200 = false;
+        	
+        	// It might have left a bad pack jar
+        	if(packedJar.exists()){
+        		packedJar.delete();
+        	}        	
+        }
+
+        if(!doPack200){
+        	// Packing is being skipped for some reason so we need to sign 
+        	// and verify it separately
+        	signJar(currentJar, shortName);
+        	
+        	if(!verifyJar(currentJar, shortName)){
+        		// We cannot verify this jar
+        		throw new MojoExecutionException("failed to verify signed jar: " + shortName);
+        	}        	
+        } else {
+
+        	getLog().info("unpacking : " + shortName + ".pack");
+        	Pack200.unpackJar( packedJar );
+
+        	// specs says that one should do it twice when there are unsigned jars??
+        	// I don't know about the unsigned part, but I found a jar
+        	// that had to be packed, unpacked, packed, and unpacked before
+        	// it could be signed and packed correctly.
+        	// I suppose the best way to do this would be to try the signature
+        	// and if it fails then pack it again, instead of packing and unpack
+        	// every single jar
+        	boolean verified = false;
+        	for(int i=0; i<2; i++){
+        		// This might throw a mojo exception if the signature didn't
+        		// verify.  This might happen if the jar has some previous
+        		// signature information
+        		signJar(currentJar, shortName );
+
+        		// Now we pack and unpack the jar
+        		getLog().info("packing : " + shortName);
+        		Pack200.packJar( currentJar, false );
+
+        		getLog().info("unpacking : " + shortName + ".pack");
+        		Pack200.unpackJar( packedJar );
+
+        		// Check if the jar is signed correctly
+        		if(verifyJar(currentJar, shortName)){
+        			verified = true;
+        			break;
+        		}
+
+        		// verfication failed here
+        		getLog().info("verfication failed, attempt: " + i);
+        	}
+
+        	if(!verified){
+        		throw new MojoExecutionException("Failed to verify sigature after signing, " +
+        		"packing, and unpacking multiple times");
+        	}
+
+        	// Now we need to gzip the resulting packed jar.
+        	getLog().info("gzipping: " + shortName + ".pack");
+        	FileInputStream inStream = new FileInputStream(packedJar);
+        	FileOutputStream outFileStream = 
+        		new FileOutputStream(packedJar.getAbsolutePath() + ".gz");
+        	GZIPOutputStream outGzStream = new GZIPOutputStream(outFileStream);
+        	IOUtil.copy(inStream, outGzStream);
+        	outGzStream.close();
+        	outFileStream.close();
+        }
+        
+        // If we are here then it is assumed the jar has been signed, packed and verified
+        
+        // We need to rename all the files in the temporaryDirectory so they 
+        // go to the targetDirectory
+        File [] tmpFiles = tmpArtifactDirectory.listFiles();
+        for(int i=0; i<tmpFiles.length; i++){
+        	File targetFile = new File(targetDirectory, tmpFiles[i].getName());
+        	// This is better than the File.renameTo because it will through
+        	// and exception if something goes wrong
+        	FileUtils.rename(tmpFiles[i], targetFile);
+        }
+
+        tmpFiles = tmpArtifactDirectory.listFiles();
+        if(tmpFiles != null && tmpFiles.length != 0){
+        	throw new MojoExecutionException("Could not move files out of: " + 
+        			tmpArtifactDirectory);
+        }
+        
+        tmpArtifactDirectory.delete();
+        
+        getLog().info("moved files to: " + targetDirectory);
+        
+        // make the snapshot copies if necessary
+        if(jnlp.getMakeSnapshotsWithNoJNLPVersion() && artifact.isSnapshot()) {
+        	String jarBaseName = getArtifactJnlpBaseName(artifact);
+
+        	String snapshot_outputName = jarBaseName + "-" + 
+        		artifact.getBaseVersion() + ".jar";
+
+        	File versionedFile = 
+        		new File(targetDirectory, getArtifactJnlpName(artifact));
+
+        	// this is method should reduce the number of times a file 
+        	// needs to be downloaded by an applet or webstart.  However
+        	// it isn't very safe if multiple users are running this. 
+        	// this method will be comparing the date of the file just 
+        	// setup in the jnlp folder with the last generated snapshot
+        	copyFileToDirectoryIfNecessary( versionedFile, targetDirectory, 
+        			snapshot_outputName );
+        }
+        
+        // Record that this artifact was successfully processed.
+        // this might not be necessary in the future
+        this.processedJnlpArtifacts.add(new File(targetDirectory, outputName));
     }
 
+    
+    protected void removeSignatures(File currentJar, String shortName)
+    	throws IOException
+    {
+        // We should remove any previous signature information.  This
+        // can screw up the packing code, and if it is signed with 2 signatures
+        // it can not be verified.
+        ZipFile currentJarZipFile = new ZipFile(currentJar);
+        Enumeration entries = currentJarZipFile.entries();
+        
+        // There might be more valid extensions but this is what we've seen so far 
+        // the ?i makes it case insensitive       
+        Pattern signatureChecker = 
+        	Pattern.compile("(?i)^meta-inf/.*(\\.sf)|(\\.rsa)$");
+
+        getLog().info("checking for old signature : " + shortName);                
+        Vector signatureFiles = new Vector();
+        while(entries.hasMoreElements()){
+        	ZipEntry entry = (ZipEntry)entries.nextElement();
+        	Matcher matcher = signatureChecker.matcher(entry.getName());
+        	if(matcher.find()){
+        		// we found a old signature in the file
+        		signatureFiles.add(entry.getName());
+                getLog().warn("found signature: " + entry.getName());                		
+        	}
+        }
+
+        if(signatureFiles.size() == 0){
+        	// no old files were found
+        	currentJarZipFile.close();
+        	return;
+        }
+
+        // We found some old signature files, write out the file again without
+        // them    
+        File outFile = new File(currentJar.getParent(), currentJar.getName() + ".unsigned");
+        ZipOutputStream zipOutStream = new ZipOutputStream(new FileOutputStream(outFile));
+        
+        entries = currentJarZipFile.entries();
+        while(entries.hasMoreElements()){
+        	ZipEntry entry = (ZipEntry)entries.nextElement();
+        	if(signatureFiles.contains(entry.getName())){
+        		continue;
+        	}
+        	InputStream entryInStream = currentJarZipFile.getInputStream(entry);
+        	ZipEntry newEntry = new ZipEntry(entry);
+        	zipOutStream.putNextEntry(newEntry);
+        	IOUtil.copy(entryInStream, zipOutStream);
+        	entryInStream.close();
+        }
+
+        zipOutStream.close();
+        currentJarZipFile.close();
+        
+        FileUtils.rename(outFile, currentJar);
+        
+        getLog().info("removed signature");
+    }
+    
+    protected boolean verifyJar(File jar, String shortName)
+    	throws MojoExecutionException
+    {
+    	getLog().info("verifying: " + shortName);
+    	JarSignVerifyMojo verifier = new JarSignVerifyMojo();
+    	verifier.setJarPath(jar);
+    	verifier.setLog(getLog());
+    	verifier.setErrorWhenNotSigned(false);
+    	verifier.setWorkingDir(jar.getParentFile());
+    	
+    	try{
+    		verifier.execute();
+    	} catch (MojoExecutionException e){
+    		// We failed to verify the jar.  Even though the method 
+    		// errorWhenNotSigned is set to false an error is still though in some cases
+    		// we are throwing out the exception here because the best error message has
+    		// already been logged to info by the jarsigner command itself.
+    		// the message in the exception simply says the command returned something
+    		// other than zero.
+    		return false;
+    	}
+    	
+    	return verifier.isSigned();
+    }
+    
     public final static String DEFAULT_ARTIFACT_GROUP = "default";
     
     protected void buildArtifactGroups()
@@ -1055,6 +1126,38 @@ public class JnlpMojo
         targetDirectory.mkdirs();
 
         return targetDirectory;
+    }
+    
+    public File getArtifactTemporaryDirFile(Artifact artifact)
+    {
+		String artifactFlatPath = getArtifactFlatPath(artifact);
+
+		File tmpDir = new File(getTemporaryDirectory(), artifactFlatPath);	
+		tmpDir.mkdirs();
+		return 	tmpDir;
+    }
+    
+    public String getArtifactFlatPath(Artifact artifact)
+    {
+		return artifact.getGroupId() + "." + artifact.getArtifactId();
+    }
+    
+    /**
+     * this is created once per execution I'm assuming a new instance of this
+     * class is created for each execution
+     * @return
+     */
+    public File getTemporaryDirectory()
+    {
+    	if(temporaryDirectory != null){
+    		return temporaryDirectory;
+    	}
+
+    	temporaryDirectory = new File(getWorkDirectory(), "tmp/" +
+    			getVersionedArtifactName());
+    	temporaryDirectory.mkdirs();
+    	
+    	return temporaryDirectory;
     }
     
     private boolean artifactContainsClass( Artifact artifact, final String mainClass )
@@ -1374,14 +1477,9 @@ public class JnlpMojo
         throws IOException
     {
 
-        if ( sourceFile == null )
-        {
-            throw new NullPointerException( "sourceFile is null" );
-        }
-
         File targetFile = new File( targetDirectory, outputName );
 
-        boolean shouldCopy = ! targetFile.exists() || targetFile.lastModified() < sourceFile.lastModified();
+        boolean shouldCopy = needsUpdating(sourceFile, targetDirectory, outputName); 
 
         if ( shouldCopy )
         {
@@ -1399,75 +1497,64 @@ public class JnlpMojo
         return shouldCopy;
     }
 
-    /**
-     * return the number of signed jars *
-     */
-    private int signJars( File directory, FileFilter fileFilter )
-        throws MojoExecutionException
+    private boolean needsUpdating(File sourceFile, File targetDirectory,
+    		String outputName)
     {
-        File[] jarFiles = directory.listFiles( fileFilter );
+        if ( sourceFile == null )
+        {
+            throw new NullPointerException( "sourceFile is null" );
+        }
 
-        getLog().debug( "signJars in " + directory + " found " + jarFiles.length + " jar(s) to sign" );
+        File targetFile = new File( targetDirectory, outputName );
 
-        return signJars(directory, jarFiles);
+        return ! targetFile.exists() || targetFile.lastModified() < sourceFile.lastModified();
+
+    }
+        
+    /**
+     * 
+     * @param relativeName 
+     * @throws IOException 
+     */
+    private void signJar(File jarFile, String relativeName )
+        throws MojoExecutionException, IOException
+    {
+    	getLog().info("signing: " + relativeName);
+    	
+    	JarSignMojo signJar = new JarSignMojo();
+    	signJar.setLog(getLog());
+    	signJar.setAlias( sign.getAlias() );
+    	signJar.setBasedir( basedir );
+    	signJar.setKeypass( sign.getKeypass() );
+    	signJar.setKeystore( sign.getKeystore() );
+    	signJar.setSigFile( sign.getSigfile() );
+    	signJar.setStorepass( sign.getStorepass() );
+    	signJar.setType( sign.getStoretype() );
+    	signJar.setVerbose( this.verbose );
+    	signJar.setWorkingDir( getWorkDirectory() );
+    	
+    	// we do our own verification because the jarsignmojo doesn't pass
+    	// the log object, to the jarsignverifymojo, so lot 
+    	signJar.setVerify( false );
+
+    	signJar.setJarPath( jarFile );
+
+    	File signedJar = new File(jarFile.getParentFile(), 
+    				jarFile.getName() + ".signed");
+
+    	// If the signedJar is set to null then the jar is signed
+    	// in place.
+    	signJar.setSignedJar(signedJar);
+
+    	long lastModified = jarFile.lastModified();
+    	signJar.execute();
+
+    	FileUtils.rename(signedJar, jarFile);
+
+    	jarFile.setLastModified( lastModified );
     }
     
-    /**
-     * return the number of signed jars *
-     */
-    private int signJars( File directory, File [] jarFiles )
-        throws MojoExecutionException
-    {
-
-        if ( jarFiles.length == 0 )
-        {
-            return 0;
-        }
-
-        JarSignMojo signJar = new JarSignMojo();
-        signJar.setAlias( sign.getAlias() );
-        signJar.setBasedir( basedir );
-        signJar.setKeypass( sign.getKeypass() );
-        signJar.setKeystore( sign.getKeystore() );
-        signJar.setSigFile( sign.getSigfile() );
-        signJar.setStorepass( sign.getStorepass() );
-        signJar.setType( sign.getStoretype() );
-        signJar.setVerbose( this.verbose );
-        signJar.setWorkingDir( getWorkDirectory() );
-        signJar.setVerify( sign.getVerify() );
-                
-        for ( int i = 0; i < jarFiles.length; i++ )
-        {
-            signJar.setJarPath( jarFiles[i] );
-
-            File signedJar = null;
-            if(sign.getForce()) {
-            	// jars should be signed even if they are already
-            	// signed.  So set the signed jar to be a temporary
-            	// file and then delete the original an move this one in
-            	signedJar = new File(jarFiles[i].getParentFile(), 
-            			jarFiles[i].getName() + ".signed");
-            	
-            } 
-            
-            // If the signedJar is set to null then the jar is signed
-            // in place.
-            signJar.setSignedJar(signedJar);
-
-            long lastModified = jarFiles[i].lastModified();
-            signJar.execute();
-            
-            if(signedJar != null) {
-            	jarFiles[i].delete();
-            	signedJar.renameTo(jarFiles[i]);
-            }
-            
-            jarFiles[i].setLastModified( lastModified );
-        }
-
-        return jarFiles.length;
-    }
-
+    
     private void checkInput()
         throws MojoExecutionException
     {

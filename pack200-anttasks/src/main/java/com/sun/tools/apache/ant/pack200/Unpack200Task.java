@@ -16,72 +16,83 @@ import java.util.zip.*;
 import java.util.jar.*;
 import java.util.jar.Pack200.*;
 
-
 /**
  * An optional ant Task which emulates the Command Line Interface unpack200(1).
+ * 
  * @version %W% %E%
  * @author Kumar Srinivasan
  */
-public class Unpack200Task extends Unpack {
+public class Unpack200Task extends Unpack
+{
 
-    enum FileType { unknown, gzip, pack200, zip };
+	enum FileType {
+		unknown, gzip, pack200, zip
+	};
 
-    private SortedMap <String, String> propMap;
-    private Pack200.Unpacker unpkr;
+	private SortedMap<String, String> propMap;
 
-    public Unpack200Task() {
-	unpkr = Pack200.newUnpacker();
-	propMap = unpkr.properties();
-    }
+	private Pack200.Unpacker unpkr;
 
-    // Needed by the super class
-    protected String getDefaultExtension() {
-	return ".jar";
-    }
-
-    public void setVerbose(String value) {
-	propMap.put(Pack200Task.COM_PREFIX + "verbose",value);
-    }
-
-    private FileType getMagic(File in) throws IOException {
-	DataInputStream is = new DataInputStream(new FileInputStream(in));
-	int i = is.readInt();
-	is.close();
-	if ( (i & 0xffffff00) == 0x1f8b0800) {
-	    return FileType.gzip;
-	} else if ( i == 0xcafed00d) {
-	    return FileType.pack200;
-	} else if ( i == 0x504b0304) {
-	    return FileType.zip;
-	} else {
-	    return FileType.unknown; 
+	public Unpack200Task()
+	{
+		unpkr = Pack200.newUnpacker();
+		propMap = unpkr.properties();
 	}
-    }
-	
-    protected void extract() {
-    	System.out.println("Unpacking with Unpack200");
-    	System.out.println("Source File :" + source);
-    	System.out.println("Dest.  File :" + dest);
 
-    	try { 
-    		FileInputStream fis = new FileInputStream(source);
+	// Needed by the super class
+	protected String getDefaultExtension()
+	{
+		return ".jar";
+	}
 
-    		InputStream is = (FileType.gzip == getMagic(source))
-    		? new BufferedInputStream(new GZIPInputStream(fis))
-    		: new BufferedInputStream(fis);
+	public void setVerbose(String value)
+	{
+		propMap.put(Pack200Task.COM_PREFIX + "verbose", value);
+	}
 
-    		FileOutputStream fos = new FileOutputStream(dest);
-    		JarOutputStream jout = new JarOutputStream(
-    				new BufferedOutputStream(fos));
+	private FileType getMagic(File in)
+	    throws IOException
+	{
+		DataInputStream is = new DataInputStream(new FileInputStream(in));
+		int i = is.readInt();
+		is.close();
+		if ((i & 0xffffff00) == 0x1f8b0800) {
+			return FileType.gzip;
+		} else if (i == 0xcafed00d) {
+			return FileType.pack200;
+		} else if (i == 0x504b0304) {
+			return FileType.zip;
+		} else {
+			return FileType.unknown;
+		}
+	}
 
-    		unpkr.unpack(is, jout);
-    		is.close();
-    		jout.close();
+	protected void extract()
+	{
+		/* Remove extraneous logging this should be done with a logger anyhow
+		System.out.println("Unpacking with Unpack200");
+		System.out.println("Source File :" + source);
+		System.out.println("Dest.  File :" + dest);
+		 */
+		try {
+			FileInputStream fis = new FileInputStream(source);
 
-    	} catch (IOException ioe) {
-    		throw new BuildException("Error in unpack200", ioe);	
-    	}
+			InputStream is = (FileType.gzip == getMagic(source)) ? new BufferedInputStream(
+			        new GZIPInputStream(fis))
+			        : new BufferedInputStream(fis);
 
-    }
+			FileOutputStream fos = new FileOutputStream(dest);
+			JarOutputStream jout = new JarOutputStream(
+			        new BufferedOutputStream(fos));
+
+			unpkr.unpack(is, jout);
+			is.close();
+			jout.close();
+
+		} catch (IOException ioe) {
+			throw new BuildException("Error in unpack200", ioe);
+		}
+
+	}
 
 }

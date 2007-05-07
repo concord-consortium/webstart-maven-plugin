@@ -938,7 +938,7 @@ public class JnlpMojo
         // There might be more valid extensions but this is what we've seen so far 
         // the ?i makes it case insensitive       
         Pattern signatureChecker = 
-        	Pattern.compile("(?i)^meta-inf/.*(\\.sf)|(\\.rsa)$");
+        	Pattern.compile("(?i)^meta-inf/.*((\\.sf)|(\\.rsa))$");
 
         getLog().info("checking for old signature : " + shortName);                
         Vector signatureFiles = new Vector();

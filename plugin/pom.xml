@@ -190,26 +190,6 @@
     </profile>
   </profiles>
 
-  <distributionManagement>
-    <repository>
-    <id>telscenter-repo-internal</id>
-      <name>TELS Center internal repository</name>
-      <uniqueVersion>true</uniqueVersion>
-      <url>scpexe://repo.telscenter.org/var/www/repo-html/internal/</url>
-    </repository>
-    <snapshotRepository>
-      <id>telscenter-repo-internal-snapshot</id>
-      <name>TELS Center internal_snapshot repository</name>
-      <uniqueVersion>true</uniqueVersion>
-      <url>scpexe://repo.telscenter.org/var/www/repo-html/internal_snapshot/</url>
-    </snapshotRepository>
-    <site>
-      <id>tels-sourceforge-site-root</id>
-      <name>TELS site root on SourceForge</name>
-      <url>scpexe://shell1.sourceforge.net/home/groups/t/te/tels/htdocs/</url>
-    </site>
-  </distributionManagement>
-
     <reporting>
       <plugins>
         <plugin>

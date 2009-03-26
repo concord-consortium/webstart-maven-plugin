@@ -119,12 +119,12 @@
       <id>telscenter-repo-internal-snapshot</id>
       <name>TELS Center internal_snapshot repository</name>
       <uniqueVersion>true</uniqueVersion>
-      <url>#{tels.snapshot.repository.url}</url>
+      <url>${tels.snapshot.repository.url}</url>
     </snapshotRepository>
     <site>
       <id>tels-sourceforge-site-root</id>
       <name>TELS site root on SourceForge</name>
-      <url>#{tels.site.url}</url>
+      <url>${tels.site.url}</url>
     </site>
   </distributionManagement>
   

@@ -38,13 +38,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.Vector;
-import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.lang.SystemUtils;
@@ -71,8 +69,6 @@ import org.codehaus.plexus.archiver.zip.ZipArchiver;
 import org.codehaus.plexus.util.DirectoryScanner;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
-import org.codehaus.plexus.util.cli.StreamFeeder;
-import org.codehaus.plexus.util.cli.StreamPumper;
 
 /**
  * Packages a jnlp application.
@@ -1522,6 +1518,7 @@ public class JnlpMojo
     	getLog().info("signing: " + relativeName);
     	
     	JarSignMojo signJar = new JarSignMojo();
+    	signJar.setSkipAttachSignedArtifact(true);
     	signJar.setLog(getLog());
     	signJar.setAlias( sign.getAlias() );
     	signJar.setBasedir( basedir );

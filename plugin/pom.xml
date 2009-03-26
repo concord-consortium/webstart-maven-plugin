@@ -89,10 +89,6 @@
       <version>1.0-alpha-3</version>
     </dependency-->
     
-    <!-- this was changed to use an internal version of this dep
-    	it should have:
-    	<groupId>org.apache.maven.plugins</groupId>    	
-     -->
     <dependency>
       <groupId>org.apache.maven.plugins</groupId>
       <artifactId>maven-jar-plugin</artifactId>

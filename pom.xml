@@ -129,8 +129,8 @@
   </distributionManagement>
   
   <properties>
-    <tels.snapshot.repository.url>scpexe://repo.telscenter.org/var/www/repo-html/internal/</tels.snapshot.repository.url>
-    <tels.repository.url>scpexe://repo.telscenter.org/var/www/repo-html/internal_snapshot/</tels.repository.url>
+    <tels.snapshot.repository.url>scpexe://repo.telscenter.org/var/www/repo-html/internal_snapshot/</tels.snapshot.repository.url>
+    <tels.repository.url>scpexe://repo.telscenter.org/var/www/repo-html/internal/</tels.repository.url>
     <tels.site.url>scpexe://shell1.sourceforge.net/home/groups/t/te/tels/htdocs/</tels.site.url>
   </properties>
 

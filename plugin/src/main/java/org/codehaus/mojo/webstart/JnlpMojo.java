@@ -752,7 +752,7 @@ public class JnlpMojo
         // that in the targetDirectory.  It would be better to use the version of the 
         // jar  
         if(!needsUpdating(toCopy, targetDirectory, outputName)){
-        	getLog().info( "skipping " + artifact + " it has already been processed");
+        	getLog().debug( "skipping " + artifact + " it has already been processed");
         	return;
         }
 
@@ -783,6 +783,9 @@ public class JnlpMojo
         // again. (gz isn't losy like pack is)
         // We should handle the case where a jar cannot be packed.
         String shortName = getArtifactFlatPath(artifact) + "/" + outputName;
+        
+        getLog().info("processing: " + shortName);        
+
         boolean doPack200 = true;
         
         // We should remove any previous signature information.  Signatures on the file
@@ -791,7 +794,7 @@ public class JnlpMojo
         // to be safe we want to remove any signatures before we do any packing.
         removeSignatures(currentJar, shortName);
         
-        getLog().info("packing : " + shortName);        
+        getLog().debug("packing : " + shortName);        
         try {
         	Pack200.packJar( currentJar, false );
         } catch (BuildException e){
@@ -825,7 +828,7 @@ public class JnlpMojo
         	}        	
         } else {
 
-        	getLog().info("unpacking : " + shortName + ".pack");
+        	getLog().debug("unpacking : " + shortName + ".pack");
         	Pack200.unpackJar( packedJar );
 
         	// specs says that one should do it twice when there are unsigned jars??
@@ -843,10 +846,10 @@ public class JnlpMojo
         		signJar(currentJar, shortName );
 
         		// Now we pack and unpack the jar
-        		getLog().info("packing : " + shortName);
+        		getLog().debug("packing : " + shortName);
         		Pack200.packJar( currentJar, false );
 
-        		getLog().info("unpacking : " + shortName + ".pack");
+        		getLog().debug("unpacking : " + shortName + ".pack");
         		Pack200.unpackJar( packedJar );
 
         		// Check if the jar is signed correctly
@@ -865,7 +868,7 @@ public class JnlpMojo
         	}
 
         	// Now we need to gzip the resulting packed jar.
-        	getLog().info("gzipping: " + shortName + ".pack");
+        	getLog().debug("gzipping: " + shortName + ".pack");
         	FileInputStream inStream = new FileInputStream(packedJar);
         	FileOutputStream outFileStream = 
         		new FileOutputStream(packedJar.getAbsolutePath() + ".gz");
@@ -873,6 +876,9 @@ public class JnlpMojo
         	IOUtil.copy(inStream, outGzStream);
         	outGzStream.close();
         	outFileStream.close();
+        	
+        	// delete the packed jar because we only need the gz jar
+        	packedJar.delete();
         }
         
         // If we are here then it is assumed the jar has been signed, packed and verified
@@ -895,7 +901,7 @@ public class JnlpMojo
         
         tmpArtifactDirectory.delete();
         
-        getLog().info("moved files to: " + targetDirectory);
+        getLog().debug("moved files to: " + targetDirectory);
         
         // make the snapshot copies if necessary
         if(jnlp.getMakeSnapshotsWithNoJNLPVersion() && artifact.isSnapshot()) {
@@ -936,7 +942,7 @@ public class JnlpMojo
         Pattern signatureChecker = 
         	Pattern.compile("(?i)^meta-inf/.*((\\.sf)|(\\.rsa))$");
 
-        getLog().info("checking for old signature : " + shortName);                
+        getLog().debug("checking for old signature : " + shortName);                
         Vector signatureFiles = new Vector();
         while(entries.hasMoreElements()){
         	ZipEntry entry = (ZipEntry)entries.nextElement();
@@ -983,7 +989,7 @@ public class JnlpMojo
     protected boolean verifyJar(File jar, String shortName)
     	throws MojoExecutionException
     {
-    	getLog().info("verifying: " + shortName);
+    	getLog().debug("verifying: " + shortName);
     	JarSignVerifyMojo verifier = new JarSignVerifyMojo();
     	verifier.setJarPath(jar);
     	verifier.setLog(getLog());
@@ -1044,7 +1050,25 @@ public class JnlpMojo
     	// to running the jnlp goal without the -U (update snapshots) 
     	// if a snapshot is built locally then its metadata is in a different
     	// state than if it is downloaded from a remote repository.
-    	return  artifact.getVersion();   	
+    	String version =  artifact.getVersion();
+    	
+    	if(version.contains("-SNAPSHOT")){
+    		File artifactFile = artifact.getFile();
+        	DateFormat utcDateFormatter = new SimpleDateFormat( UTC_TIMESTAMP_PATTERN );
+        	utcDateFormatter.setTimeZone( UTC_TIME_ZONE );
+        	String timestamp = utcDateFormatter.format( new Date(artifactFile.lastModified()) );
+        	
+        	version = version.replaceAll("SNAPSHOT", timestamp);
+        	
+        	getLog().debug("constructing local timestamp: " + timestamp + 
+        			" for SNAPSHOT: " + artifact);
+    	}
+    	
+    	String suffix = jnlp.getVersionSuffix(); 
+    	if(suffix != null){
+    		version += suffix;
+    	}
+    	return version;
     }
 
     /**
@@ -1515,7 +1539,7 @@ public class JnlpMojo
     private void signJar(File jarFile, String relativeName )
         throws MojoExecutionException, IOException
     {
-    	getLog().info("signing: " + relativeName);
+    	getLog().debug("signing: " + relativeName);
     	
     	JarSignMojo signJar = new JarSignMojo();
     	signJar.setSkipAttachSignedArtifact(true);

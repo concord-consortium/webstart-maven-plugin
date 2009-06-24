@@ -65,6 +65,8 @@ public class JnlpConfig
 
 	private boolean makeJnlpWithVersion = false;
 
+	private String versionSuffix = "";
+
     public String getSystemPropertyPrefix() {
 		return systemPropertyPrefix;
 	}
@@ -176,6 +178,16 @@ public class JnlpConfig
     	return fileVersions;
     }
 
+    public void setVersionSuffix(String suffix)
+    {
+    	this.versionSuffix  = suffix;
+    }
+    
+    public String getVersionSuffix()
+    {
+    	return versionSuffix;
+    }
+    
 	public boolean getVersionSnapshots() 
 	{
 		return versionSnapshots;

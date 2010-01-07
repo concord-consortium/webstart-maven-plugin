@@ -1527,8 +1527,14 @@ public class JnlpMojo
 
         File targetFile = new File( targetDirectory, outputName );
 
-        return ! targetFile.exists() || targetFile.lastModified() < sourceFile.lastModified();
-
+        if(outputName.contains("__V")){
+        	// never update a versioned file that already exists
+        	// if a webstart client has downloaded this versioned file it will expect the server to have the same one
+        	// as before.
+        	return ! targetFile.exists();
+        } else {
+            return ! targetFile.exists() || targetFile.lastModified() < sourceFile.lastModified();        	
+        }
     }
         
     /**

@@ -100,6 +100,10 @@ public class SignConfig
     private String alias;
 
     /**
+     */
+    private String tsa;
+
+    /**
      * Whether we want to auto-verify the signed jars.
      */
     private boolean verify;
@@ -189,6 +193,11 @@ public class SignConfig
         this.verify = verify;
     }
 
+    public void setTsa( String tsa )
+    {
+        this.tsa = tsa;
+    }
+
 	public void setForce(boolean force) {
 		this.force = force;
 	}
@@ -276,6 +285,11 @@ public class SignConfig
     public boolean getVerify()
     {
         return verify;
+    }
+
+    public String getTsa()
+    {
+        return tsa;
     }
 
 	public boolean getForce() {

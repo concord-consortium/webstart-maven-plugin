@@ -62,7 +62,6 @@ import org.apache.maven.plugin.jar.JarSignVerifyMojo;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.MavenProjectHelper;
 import org.apache.maven.settings.Settings;
-import org.apache.tools.ant.BuildException;
 import org.codehaus.mojo.keytool.GenkeyMojo;
 import org.codehaus.mojo.webstart.generator.Generator;
 import org.codehaus.plexus.archiver.zip.ZipArchiver;
@@ -797,7 +796,7 @@ public class JnlpMojo
         getLog().debug("packing : " + shortName);        
         try {
         	Pack200.packJar( currentJar, false );
-        } catch (BuildException e){
+        } catch (Exception e){
         	// it will throw an ant.BuildException if it can't pack the jar
         	// One example is with
         	//  <groupId>com.ibm.icu</groupId>
@@ -1559,6 +1558,7 @@ public class JnlpMojo
     	signJar.setType( sign.getStoretype() );
     	signJar.setVerbose( this.verbose );
     	signJar.setWorkingDir( getWorkDirectory() );
+    	signJar.setTsa( sign.getTsa() );
     	
     	// we do our own verification because the jarsignmojo doesn't pass
     	// the log object, to the jarsignverifymojo, so lot 
